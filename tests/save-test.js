@@ -1,0 +1,10 @@
+require('../js/engine.js'); require('../js/data.js'); require('../js/save.js');
+const NA = globalThis.NA; const assert = require('assert');
+const old = { profile: { name: 'Edson', xp: 750, wins: 7, losses: 2 }, custom: 'keep-me' };
+const m = NA._migrate(JSON.parse(JSON.stringify(old)));
+assert.equal(m.v, NA.SAVE_VERSION); assert.equal(m.profile.xp, 750); assert.equal(m.profile.wins, 7);
+assert.equal(m.custom, 'keep-me'); assert.equal(m.profile.bestStreak, 0); assert.ok(m.settings.difficulty);
+assert.equal(NA.levelOf(0), 1); assert.equal(NA.levelOf(100), 2); assert.equal(NA.levelOf(750), 4);
+const s = NA.loadSave(); const r = NA.recordResult(s, { result: 'win', team: ['naruto','hinata','gaara'], enemy: ['itachi','kisame','orochimaru'], difficulty: 'dificil', flawless: true, turns: 9 });
+assert.ok(r.xp > 0 && s.profile.wins === 1 && s.profile.hardWins === 1);
+console.log('save tests ok', r);
