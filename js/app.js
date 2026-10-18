@@ -14,7 +14,9 @@
   A.team = (A.save.lastTeam || []).filter((id) => NA.CHARS_BY_ID[id] && NA.isUnlocked(A.save, id)).slice(0, 3);
   NA.sfxEnabled = A.save.settings.sound;
   globalThis.ArenaApp = A; // para testes
-  const spd = () => (A.save.settings.speed === 2 ? 0.5 : 1);
+  NA.VFX.init(); NA.VFX.setQuality(A.save.settings.fx || 'alto'); NA.VFX.k = 1 / (A.save.settings.speed || 1);
+  const spd = () => 1 / (A.save.settings.speed || 1);
+  const V = NA.VFX;
 
   const RIVALS = ['Kabuto (Rival)', 'Zabuza Treinado', 'Esquadrão do Som', 'Akatsuki Sombria', 'Raiz da ANBU', 'Ninjas da Névoa', 'Irmãos da Areia', 'Clã Fantasma', 'Renegados de Ame', 'Bandidos de Taki'];
 
@@ -24,9 +26,9 @@
     for (const k of T.concat(['rand'])) for (let i = 0; i < (cost[k] || 0); i++) h += `<i class="cd ${k}"></i>`;
     return h || '<span class="mut">Sem custo</span>';
   }
-  function skillDetail(sk) {
+  function skillDetail(sk, id, si) {
     const cls = sk.cls.map((c) => `<span class="tag">${c}</span>`).join('');
-    return `<div class="skitem"><div class="ico">${sk.icon}</div><div class="grow"><h4>${esc(sk.name)}</h4>
+    return `<div class="skitem"><div class="ico">${id ? skillIconHTML(id, si) : sk.icon}</div><div class="grow"><h4>${esc(sk.name)}</h4>
       <div class="meta"><span class="cost">${costHTML(sk.cost)}</span><span>· Recarga: ${sk.cd || 0}</span></div>
       <div class="meta" style="margin-top:4px">${cls}</div><p>${esc(sk.desc)}</p></div></div>`;
   }
@@ -125,7 +127,7 @@
     modal(`<div class="det-head"><div class="portrait">${NA.portraitHTML(id, 'd')}</div><div><h3>${esc(c.name)}</h3><div class="mut" style="font-size:13px">${esc(c.title)} · ${esc(c.rank)}</div>
       <div class="mut" style="font-size:12px;margin-top:4px">Partidas: ${st.used} · Vitórias: ${st.wins}</div></div></div>
       <p style="margin:0 0 10px;font-size:14px;color:#d3d9e4">${esc(c.bio)}</p>
-      <div class="sklist">${c.skills.map(skillDetail).join('')}</div>
+      <div class="sklist">${c.skills.map((sk, i) => skillDetail(sk, id, i)).join('')}</div>
       <div style="margin-top:12px" class="col">${btn}<button class="btn ghost" data-a="closeModal">Fechar</button></div>`);
   }
 
@@ -169,7 +171,8 @@
         <label class="col" style="gap:6px"><span class="mut" style="font-size:13px">Nome do ninja</span>
         <input id="nameIn" maxlength="20" value="${esc(A.save.profile.name)}" style="padding:12px;border-radius:10px;border:1px solid var(--line);background:#0f131b;color:var(--txt)"></label>
         <div class="toggle"><div><b>Sons</b><div class="mut" style="font-size:12px">Efeitos sonoros sintetizados</div></div><button class="sw ${st.sound ? 'on' : ''}" data-a="opt:sound" aria-label="Sons"></button></div>
-        <div class="toggle"><div><b>Animações rápidas</b><div class="mut" style="font-size:12px">Batalhas mais ágeis</div></div><button class="sw ${st.speed === 2 ? 'on' : ''}" data-a="opt:speed" aria-label="Rápido"></button></div>
+        <div class="toggle col"><div><b>Efeitos visuais</b><div class="mut" style="font-size:12px">Baixo economiza bateria em celulares</div></div><div class="seg">${[['alto', 'Alto'], ['medio', 'Médio'], ['baixo', 'Baixo']].map(([v, l]) => `<button class="${(st.fx || 'alto') === v ? 'on' : ''}" data-a="opt:fx:${v}">${l}</button>`).join('')}</div></div>
+        <div class="toggle col"><div><b>Velocidade da batalha</b><div class="mut" style="font-size:12px">Ritmo das animações e do turno inimigo</div></div><div class="seg">${[[0.7, 'Lenta'], [1, 'Normal'], [2, 'Rápida'], [3, 'Turbo']].map(([v, l]) => `<button class="${(st.speed || 1) === v ? 'on' : ''}" data-a="opt:speed:${v}">${l}</button>`).join('')}</div></div>
         <div class="toggle"><div><b>Modo livre</b><div class="mut" style="font-size:12px">Libera todos os personagens sem missões</div></div><button class="sw ${st.freeMode ? 'on' : ''}" data-a="opt:freeMode" aria-label="Modo livre"></button></div>
       </div>
       <h3 style="margin:16px 0 8px">💾 Progresso</h3>
@@ -201,14 +204,14 @@
     if (A.team.length !== 3) return;
     A.save.lastTeam = A.team.slice(); NA.writeSave(A.save);
     const pool = NA.CHARS.map((c) => c.id).sort(() => Math.random() - 0.5);
-    const enemy = pool.slice(0, 3);
+    const enemy = A.forceEnemy || pool.slice(0, 3);
     const st = NA.createBattle(A.team.slice(), enemy);
     A.b = { st, q: [], sel: null, busy: false, info: null, diff: A.save.settings.difficulty, rival: RIVALS[Math.floor(Math.random() * RIVALS.length)], enemy, team: A.team.slice() };
     A.screen = 'battle';
     closeModal();
     app.innerHTML = '';
     renderBattle();
-    splash('Sua vez!');
+    ribbon(`Turno 1 · Sua vez`);
     NA.sfx('turn');
   }
 
@@ -221,14 +224,16 @@
   const LANES = [{ x: 13, b: 35, s: 0.84, z: 1 }, { x: 25, b: 17, s: 0.92, z: 2 }, { x: 39, b: 1, s: 1, z: 3 }];
   function hpBar(c) {
     const hpc = c.hp > 60 ? '#35c24a' : c.hp > 30 ? '#f2b705' : '#e33b3b';
-    return `<div class="hp" data-hp="${c.uid}"><i class="ghost" style="width:${c.hp}%"></i><i class="bar" style="width:${c.hp}%;background:${hpc}"></i><span>${c.hp}</span></div>`;
+    const pv = A.b && A.b.preview && A.b.preview[c.uid];
+    const pvh = pv > 0 ? `<i class="pvbar" style="left:${Math.max(0, c.hp - pv)}%;width:${Math.min(pv, c.hp)}%"></i>` : pv < 0 ? `<i class="pvbar heal" style="left:${c.hp}%;width:${Math.min(-pv, 100 - c.hp)}%"></i>` : '';
+    return `<div class="hp" data-hp="${c.uid}"><i class="ghost" style="width:${c.hp}%"></i><i class="bar" style="width:${c.hp}%;background:${hpc}"></i>${pvh}<span>${c.hp}</span></div>`;
   }
   function unitHTML(c) {
     const L = LANES[c.idx], foe = c.side === 1, x = foe ? 100 - L.x : L.x, def = NA.CHARS_BY_ID[c.id];
     return `<div class="unit ${foe ? 'foe' : 'me'}" data-uid="${c.uid}" style="left:${x}%;bottom:${L.b}%;z-index:${L.z};--s:${L.s}">
-      <div class="shadow"></div>
-      <div class="body" data-a="fighter:${c.uid}"><div class="flip"><img class="rend" alt="${esc(def.short)}" src="img/full/${c.id}.webp?v=${NA.IMG_V}" style="animation-delay:-${((c.uid * 0.37) % 2.4).toFixed(2)}s" onerror="this.parentNode.classList.add('noimg');this.remove()"><span class="fb">${NA.portraitHTML(c.id, 'f' + c.uid)}</span></div></div>
-      <div class="ubar" data-a="fighter:${c.uid}"></div><div class="ovl"></div></div>`;
+      <div class="shadow"></div><div class="aura-back"></div>
+      <div class="body"><div class="flip"><img class="rend" alt="${esc(def.short)}" src="img/full/${c.id}.webp?v=${NA.IMG_V}" style="animation-delay:-${((c.uid * 0.37) % 2.4).toFixed(2)}s" onerror="this.parentNode.classList.add('noimg');this.remove()"><span class="fb">${NA.portraitHTML(c.id, 'f' + c.uid)}</span></div></div>
+      <div class="aura-front"></div><div class="ubar" data-a="fighter:${c.uid}"></div><div class="ovl"></div></div>`;
   }
   function updateStage() {
     const b = A.b, st = b.st;
@@ -238,7 +243,17 @@
       const stunned = c.alive && c.st.some((s) => s.stun === true);
       const tg = !!(b.sel && b.targets && b.targets.includes(c.uid));
       u.classList.toggle('dead', !c.alive); u.classList.toggle('stunned', stunned); u.classList.toggle('target', tg);
-      $('.ubar', u).innerHTML = `<span class="un">${stunned ? '<b class="stun-ic">💫</b>' : ''}${esc(def.short)}</span>${hpBar(c)}<div class="sts">${c.alive ? c.st.map((s) => stIcon(st, c, s)).join('') : ''}</div>`;
+      const al = c.alive;
+      u.classList.toggle('a-shield', al && c.st.some((s) => s.dd > 0));
+      u.classList.toggle('a-inv', al && c.st.some((s) => s.invuln));
+      u.classList.toggle('a-dr', al && c.st.some((s) => s.dr > 0));
+      u.classList.toggle('a-burn', al && c.st.some((s) => s.key === 'amaterasu'));
+      u.classList.toggle('a-poison', al && c.st.some((s) => s.dot && s.key !== 'amaterasu'));
+      u.classList.toggle('a-gates', al && c.st.some((s) => s.key === 'gates' || s.key === 'inner'));
+      u.classList.toggle('a-buff', al && c.st.some((s) => s.dmgUp > 0 || s.hot));
+      u.classList.toggle('a-weak', al && c.st.some((s) => s.dmgDown || s.vuln));
+      const pv = b.preview && b.preview[c.uid];
+      $('.ubar', u).innerHTML = `${pv ? `<span class="pv ${pv > 0 ? 'd' : 'h'}">${pv > 0 ? '-' + pv : '+' + -pv}</span>` : ''}<span class="un">${stunned ? '<b class="stun-ic">💫</b>' : ''}${esc(def.short)}</span>${hpBar(c)}<div class="sts">${c.alive ? c.st.map((s) => stIcon(st, c, s)).join('') : ''}</div>`;
       const q = c.side === 0 ? b.q.find((x) => x.ci === c.idx) : null;
       const inc = b.q.filter((x) => x.tgt === c.uid || (x.aoe && x.aoeSide === c.side)).map((x) => NA.skillOf(st.teams[0].chars[x.ci], x.si).icon);
       void q;
@@ -253,6 +268,12 @@
       <div class="skills">${[0, 1, 2, 3].map((si) => skillBtn(c, si)).join('')}</div></div>`;
   }
 
+  function mainType(sk) { let m = 'rand', mx = 0; for (const k of T) if ((sk.cost[k] || 0) > mx) { mx = sk.cost[k]; m = k; } return m; }
+  function skillIconHTML(id, si, cls) {
+    const key = id + si, sk = NA.CHARS_BY_ID[id].skills[si];
+    const img = NA.SKILL_IMGS && NA.SKILL_IMGS.has(key) ? `<i style="background-image:url('img/sk/${key}.webp?v=3')"></i>` : '';
+    return `<span class="ski ${cls || ''} t-${mainType(sk)}"><b>${sk.icon}</b>${img}</span>`;
+  }
   function skillBtn(c, si) {
     const b = A.b, st = b.st, sk = NA.skillOf(c, si);
     const myTurn = st.side === 0 && !b.busy && st.winner == null;
@@ -263,7 +284,7 @@
     const off = !queued && (!myTurn || !r.ok);
     let costs = '';
     for (const k of T.concat(['rand'])) for (let i = 0; i < (sk.cost[k] || 0); i++) costs += `<i class="cd ${k}"></i>`;
-    return `<button class="skill ${off ? 'off' : ''} ${sel ? 'sel' : ''} ${queued ? 'queued' : ''}" data-a="skill:${c.idx}:${si}" aria-label="${esc(sk.name)}">${sk.icon}<span class="costs">${costs}</span>${cdLeft && !queued ? `<span class="cdn">${cdLeft}</span>` : ''}</button>`;
+    return `<button class="skill ${off ? 'off' : ''} ${sel ? 'sel' : ''} ${queued ? 'queued' : ''}" data-a="skill:${c.idx}:${si}" aria-label="${esc(sk.name)}">${skillIconHTML(c.id, si)}<span class="costs">${costs}</span>${cdLeft && !queued ? `<span class="cdn">${cdLeft}</span>` : ''}</button>`;
   }
 
   function infoHTML() {
@@ -274,7 +295,7 @@
       const c = st.teams[b.info.side].chars[b.info.ci], sk = NA.skillOf(c, b.info.si);
       const r = b.info.side === 0 ? NA.canUse(st, 0, b.info.ci, b.info.si, b.q) : { ok: true };
       const queued = b.q.find((x) => x.ci === b.info.ci && x.si === b.info.si);
-      return `<h4>${sk.icon} ${esc(sk.name)} <span class="cost" style="margin-left:auto">${costHTML(sk.cost)}</span></h4>
+      return `<h4>${skillIconHTML(c.id, b.info.si, 'mini')} ${esc(sk.name)} <span class="cost" style="margin-left:auto">${costHTML(sk.cost)}</span></h4>
         <div class="meta" style="margin:3px 0">${sk.cls.map((x) => `<span class="tag">${x}</span>`).join('')}<span>Recarga ${sk.cd || 0}</span></div>
         <div>${esc(sk.desc)}</div>
         ${queued ? '<div class="hint" style="margin-top:4px">✅ Na fila. Toque no ícone laranja para cancelar.</div>' : b.sel ? '<div style="margin-top:4px;color:var(--or2);font-weight:700">👉 Toque em um alvo destacado.</div>' : !r.ok ? `<div class="why" style="margin-top:4px">⛔ ${esc(r.why)}</div>` : ''}`;
@@ -293,7 +314,7 @@
   function buildBattle() {
     const st = A.b.st;
     app.innerHTML = `<section class="battle"><div class="bt-top" id="bt-top"></div>
-      <div class="stage" id="stage"><div class="stage-fx"></div>${NA.allChars(st).map(unitHTML).join('')}</div>
+      <div class="stage" id="stage" data-a="stagetap"><div class="stage-fx"></div>${NA.allChars(st).map(unitHTML).join('')}</div>
       <div class="panel" id="panel"></div><div class="info" id="info"></div><div class="bt-bottom" id="bt-bottom"></div></section>`;
   }
   function renderBattle() {
@@ -310,14 +331,27 @@
         <button class="iconbtn" data-a="bmenu" aria-label="Menu">⋯</button>`;
     $('#panel').innerHTML = st.teams[0].chars.map(prowHTML).join('');
     $('#info').innerHTML = infoHTML();
-    const qh = b.q.map((x) => `<button class="q" data-a="deq:${x.ci}">${NA.skillOf(st.teams[0].chars[x.ci], x.si).icon}</button>`).join('');
+    const qh = b.q.map((x) => `<button class="q" data-a="deq:${x.ci}">${skillIconHTML(st.teams[0].chars[x.ci].id, x.si)}</button>`).join('');
     $('#bt-bottom').innerHTML = `<div class="queue">${qh || `<span>vs <b>${esc(b.rival)}</b> · ${({ facil: 'Fácil', normal: 'Normal', dificil: 'Difícil' })[b.diff]}</span>`}</div>
         <button class="btn primary pronto ${myTurn ? '' : 'wait'}" data-a="ready" ${myTurn ? '' : 'disabled'}>${myTurn ? 'PRONTO' : '…'}</button>`;
     updateStage();
   }
 
+  function computePreview(ci, si, targets) {
+    const b = A.b, st = b.st, out = {};
+    try {
+      const base = b.q.filter((x) => x.ci !== ci).map((x) => ({ ci: x.ci, si: x.si, tgt: x.tgt }));
+      const s0 = NA.clone(st); NA.resolveActions(s0, 0, base, null);
+      for (const uid of targets) {
+        const s1 = NA.clone(st); NA.resolveActions(s1, 0, base.concat([{ ci, si, tgt: uid }]), null);
+        const d = NA.byUid(s0, uid).hp - NA.byUid(s1, uid).hp; if (d) out[uid] = d;
+      }
+    } catch (e) { return null; }
+    return out;
+  }
   function onSkill(ci, si) {
     const b = A.b, st = b.st;
+    b.preview = null;
     const c = st.teams[0].chars[ci];
     b.info = { type: 'skill', side: 0, ci, si };
     if (st.side !== 0 || b.busy || st.winner != null) { renderBattle(); return; }
@@ -336,18 +370,62 @@
       b.sel = null; b.targets = null;
     } else {
       b.sel = { ci, si }; b.targets = valid.map((t) => t.uid);
+      b.preview = computePreview(ci, si, b.targets);
     }
     renderBattle();
   }
 
+  const alphaCache = {};
+  function alphaAt(img, px, py) {
+    let a = alphaCache[img.src];
+    if (!a) {
+      try {
+        const c = document.createElement('canvas'), s = 0.25;
+        c.width = Math.max(1, Math.round(img.naturalWidth * s)); c.height = Math.max(1, Math.round(img.naturalHeight * s));
+        const x = c.getContext('2d'); x.drawImage(img, 0, 0, c.width, c.height);
+        a = alphaCache[img.src] = { d: x.getImageData(0, 0, c.width, c.height).data, w: c.width, h: c.height, s };
+      } catch (e) { return 255; }
+    }
+    const ix = Math.floor(px * a.s), iy = Math.floor(py * a.s);
+    if (ix < 0 || iy < 0 || ix >= a.w || iy >= a.h) return 0;
+    return a.d[(iy * a.w + ix) * 4 + 3];
+  }
+  /** escolhe o ninja tocado no palco: pixel visível > alvo válido mais próximo > mais próximo */
+  function pickUnit(x, y) {
+    const b = A.b; const cands = [];
+    for (const u of $$('.unit')) {
+      const uid = +u.dataset.uid, p = posOf(uid); if (!p) continue;
+      const inBox = x >= p.left - 8 && x <= p.left + p.w + 8 && y >= p.top - 8 && y <= p.bottom + 8;
+      let hit = false;
+      if (inBox && p.img && p.img.naturalWidth && !u.classList.contains('dead')) {
+        let nx = ((x - p.left) / p.w) * p.img.naturalWidth; if (uid >= 10) nx = p.img.naturalWidth - nx;
+        const ny = ((y - p.top) / p.h) * p.img.naturalHeight;
+        hit = alphaAt(p.img, nx, ny) > 40;
+      }
+      cands.push({ uid, hit, inBox, dist: Math.hypot(x - p.x, y - (p.top + p.h * 0.5)), valid: !!(b.targets && b.targets.includes(uid)), z: +u.style.zIndex || 0 });
+    }
+    const by = (f) => cands.filter(f).sort((a, c) => a.dist - c.dist);
+    const pick = by((c) => c.hit && c.valid)[0] || (b.sel ? by((c) => c.inBox && c.valid)[0] : null) || by((c) => c.hit).sort((a, c) => c.z - a.z)[0] || by((c) => c.inBox)[0] || by((c) => c.dist < 70)[0];
+    return pick ? pick.uid : null;
+  }
+  A.pickUnit = pickUnit;
+  A.startBattle = startBattle;
+  // gancho de demonstração (capturas de tela / vídeo): toca um jutsu sem alterar a batalha
+  A.demoSkill = async (uid, si, targets, amt) => {
+    const st = A.b.st, c = NA.byUid(st, uid), sk = NA.skillOf(c, si);
+    const harmful = targets.some((t) => (t >= 10) !== (uid >= 10));
+    const ev = [{ t: 'skill', uid, si, name: sk.name, icon: sk.icon, targets, harmful }];
+    if (harmful && amt) targets.forEach((t) => ev.push({ t: 'dmg', uid: t, amt, kind: 'normal', hp: NA.byUid(st, t).hp }));
+    await playEvents(ev);
+  };
   function onFighter(uid) {
     const b = A.b, st = b.st;
     if (b.sel && b.targets && b.targets.includes(uid)) {
       b.q = b.q.filter((x) => x.ci !== b.sel.ci).concat([{ ci: b.sel.ci, si: b.sel.si, tgt: uid }]);
       b.info = { type: 'skill', side: 0, ci: b.sel.ci, si: b.sel.si };
-      b.sel = null; b.targets = null; NA.sfx('tap');
+      b.sel = null; b.targets = null; b.preview = null; NA.sfx('tap');
     } else {
-      b.sel = null; b.targets = null;
+      b.sel = null; b.targets = null; b.preview = null;
       b.info = { type: 'char', uid };
     }
     renderBattle();
@@ -389,16 +467,21 @@
 
   // ---------- efeitos visuais ----------
   const fx = () => $('#fx-layer');
-  function centerOf(uid) {
+  function posOf(uid) {
     const u = $(`.unit[data-uid="${uid}"]`);
     if (!u) return null;
     const t = $('.rend', u) || $('.fb', u) || $('.body', u);
     const r = t.getBoundingClientRect();
-    return { x: r.left + r.width / 2, y: r.top + r.height * 0.42, el: u, body: $('.body', u) };
+    let L = r.left, Wd = r.width, Tp = r.top, Hh = r.height;
+    if (t.naturalWidth && !u.classList.contains('dead')) { const sc = Math.min(r.width / t.naturalWidth, r.height / t.naturalHeight); Wd = t.naturalWidth * sc; Hh = t.naturalHeight * sc; L = r.left + (r.width - Wd) / 2; Tp = r.bottom - Hh; }
+    return { x: L + Wd / 2, y: Tp + Hh * 0.42, top: Tp, bottom: Tp + Hh, w: Wd, h: Hh, left: L, el: u, body: $('.body', u), img: $('.rend', u) };
   }
-  function floatText(uid, text, cls) {
+  const centerOf = posOf;
+  function floatText(uid, text, cls, size, sub) {
     const p = centerOf(uid); if (!p) return;
     const d = document.createElement('div'); d.className = 'float ' + cls; d.textContent = text;
+    if (size) d.style.fontSize = size + 'px';
+    if (sub) { const s2 = document.createElement('small'); s2.textContent = sub; d.appendChild(s2); }
     const w = cls === 'info' ? 70 : 30; d.style.left = Math.max(w, Math.min(window.innerWidth - w, p.x + (Math.random() * 16 - 8))) + 'px'; d.style.top = p.y - 10 + 'px';
     fx().appendChild(d); setTimeout(() => d.remove(), 1200);
   }
@@ -426,7 +509,7 @@
     const dx = (b.x - a.x) * (melee ? 0.6 : 0.1), dy = (b.y - a.y) * (melee ? 0.45 : 0.05);
     const dur = (melee ? 640 : 420) * spd();
     a.body.animate([{ transform: 'translate(0,0)' }, { transform: `translate(${-dx * 0.08}px,-8px) scale(1.03)`, offset: 0.2 }, { transform: `translate(${dx}px,${dy}px) scale(1.08)`, offset: 0.55 }, { transform: `translate(${dx * 0.9}px,${dy * 0.9}px) scale(1.06)`, offset: 0.7 }, { transform: 'translate(0,0)' }], { duration: dur, easing: 'ease-in-out' });
-    return dur * 0.55;
+    return (melee ? 640 : 420) * 0.55;
   }
   function hop(uid) {
     const a = centerOf(uid); if (!a || !a.body.animate) return;
@@ -464,49 +547,73 @@
     }
   }
 
+  function setInfoLine(html) { const i = $('#info'); if (i) i.innerHTML = `<div class="actline">${html}</div>`; }
+  function ribbon(text, foe) {
+    const d = document.createElement('div'); d.className = 'ribbon ' + (foe ? 'foe' : 'me');
+    d.innerHTML = `<span>${text}</span>`;
+    const s = $('#stage'); if (s) { const r = s.getBoundingClientRect(); d.style.top = r.top + r.height * 0.42 + 'px'; }
+    fx().appendChild(d); setTimeout(() => d.remove(), 1400 * spd());
+    d.style.animationDuration = 1.3 * spd() + 's';
+  }
+  function fxOn() { return A.save.settings.fx !== 'baixo'; }
+
   async function playEvents(events) {
-    const k = spd();
+    const k = spd(); V.k = k;
     for (const e of events) {
+      if (A.screen !== 'battle') return;
       if (e.t === 'skill') {
-        const p = centerOf(e.uid);
-        const c = NA.byUid(A.b.st, e.uid), sk = NA.skillOf(c, e.si);
-        if (p) p.el.classList.add('casting');
-        banner(`${e.icon} ${e.name}`, e.uid >= 10);
-        NA.sfx('skill');
+        const st = A.b.st, c = NA.byUid(st, e.uid), sk = NA.skillOf(c, e.si), key = c.id + e.si;
+        const p = posOf(e.uid); if (!p) continue;
+        const foe = e.uid >= 10;
         const others = e.targets.filter((t) => t !== e.uid);
-        if (e.harmful && others.length) {
-          const melee = sk.cls.includes('Corpo a corpo');
-          const hit = lunge(e.uid, others[0], melee);
-          if (!melee) { await sleep(160 * k); for (const t of others) projectile(e.uid, t, e.icon); await sleep(400 * k); }
-          else await sleep(hit);
-          for (const t of others) impact(t, e.icon, 'harm');
-          await sleep((melee ? 300 : 160) * k);
-        } else {
-          hop(e.uid);
-          await sleep(200 * k);
-          for (const t of e.targets) impact(t, e.icon, 'buff');
-          await sleep(360 * k);
-        }
-        if (p) p.el.classList.remove('casting');
+        const tn = others.map((t) => NA.CHARS_BY_ID[NA.byUid(st, t).id].short);
+        p.el.classList.add('acting');
+        const aimed = others.map((t) => $(`.unit[data-uid="${t}"]`)).filter(Boolean);
+        aimed.forEach((u) => u.classList.add(e.harmful ? 'aimed' : 'aimed-ally'));
+        setInfoLine(`${foe ? '<span class="tagfoe">Oponente</span>' : '<span class="tagme">Você</span>'} <b>${esc(NA.CHARS_BY_ID[c.id].short)}</b> usa ${skillIconHTML(c.id, e.si, 'mini')} <b>${esc(sk.name)}</b>${tn.length ? ` em <b>${esc(tn.join(', '))}</b>` : ''}`);
+        banner(`${e.icon} ${e.name}`, foe);
+        NA.sfx('skill');
+        await sleep((foe ? 560 : 240) * k);
+        const ult = V.ULT[key];
+        const seen = (A.b.cineSeen = A.b.cineSeen || {});
+        if (ult && fxOn() && !(A.save.settings.fx === 'medio' && seen[key])) { seen[key] = 1; await V.cine(ult[0], ult[1], c.side, p); }
+        const ts = e.targets.map(posOf).filter(Boolean);
+        const ctx = { a: p, ts: ts.length ? ts : [p], dir: foe ? -1 : 1, side: c.side, harmful: e.harmful, melee: sk.cls.includes('Corpo a corpo'), img: p.img,
+          lunge: (i) => lunge(e.uid, others[i] != null ? others[i] : e.targets[0], true) };
+        try { await (V.SK[key] || V.generic)(ctx, sk); } catch (err) { console.warn('vfx', err); }
+        p.el.classList.remove('acting');
+        aimed.forEach((u) => u.classList.remove('aimed', 'aimed-ally'));
       } else if (e.t === 'dmg') {
         const cls = e.kind === 'piercing' ? 'pierce' : e.kind === 'affliction' ? 'aff' : 'dmg';
-        if (e.amt > 0) { knock(e.uid); floatText(e.uid, '-' + e.amt, cls); sparks(e.uid, cls === 'aff' ? '#c56bff' : cls === 'pierce' ? '#ffb000' : '#ff4d4d'); NA.sfx('hit'); }
-        else floatText(e.uid, e.absorbed ? `🛡 ${e.absorbed}` : 'Bloqueado', 'blocked');
-        setHP(e.uid, e.hp);
-        await sleep(280 * k);
+        if (e.amt > 0) {
+          knock(e.uid);
+          const big = e.amt >= 40;
+          floatText(e.uid, '-' + e.amt, cls + (big ? ' crit' : ''), 18 + Math.min(26, e.amt * 0.42), big ? 'DEVASTADOR!' : e.kind === 'piercing' ? 'perfurante' : e.kind === 'affliction' ? 'aflição' : '');
+          sparks(e.uid, cls === 'aff' ? '#c56bff' : cls === 'pierce' ? '#ffb000' : '#ff4d4d'); NA.sfx('hit');
+          const u = $(`.unit[data-uid="${e.uid}"]`); if (u) { u.classList.remove('hitflash'); void u.offsetWidth; u.classList.add('hitflash'); }
+          setHP(e.uid, e.hp);
+          if (e.amt >= 20) { V.shake(Math.min(16, e.amt / 3), 300); await V.hitStop(Math.min(150, 30 + e.amt * 2)); }
+        } else { floatText(e.uid, e.absorbed ? `🛡 -${e.absorbed}` : 'Bloqueado', 'blocked', 0, e.absorbed ? 'defesa' : ''); setHP(e.uid, e.hp); }
+        await sleep(240 * k);
       } else if (e.t === 'heal') {
-        impact(e.uid, '💚', 'buff'); floatText(e.uid, '+' + e.amt, 'heal'); NA.sfx('heal'); setHP(e.uid, e.hp);
-        await sleep(260 * k);
+        floatText(e.uid, '+' + e.amt, 'heal', 22, 'cura'); NA.sfx('heal'); setHP(e.uid, e.hp);
+        const pp = posOf(e.uid); if (pp) { V.glow(pp.x, pp.y, V.C.green, 100, 500); }
+        await sleep(240 * k);
       } else if (e.t === 'status') {
-        floatText(e.uid, `${e.icon} ${e.name}`, 'info'); NA.sfx('status');
+        const c = NA.byUid(A.b.st, e.uid); const s0 = c && c.st.find((s) => s.name === e.name);
+        floatText(e.uid, `${e.icon} ${s0 && s0.stun ? 'Atordoado!' : e.name}`, 'info'); NA.sfx('status');
+        if (A.b) updateStage();
         await sleep(170 * k);
       } else if (e.t === 'counter') {
-        impact(e.uid, '🪞', 'buff'); floatText(e.uid, 'Anulado!', 'info'); await sleep(320 * k);
+        const pp = posOf(e.uid); if (pp) { V.ring(pp.x, pp.y, V.C.white, 80, 450, 5); V.flash(V.C.white, 0.3, 200); }
+        floatText(e.uid, '🪞 Anulado!', 'info'); await sleep(360 * k);
       } else if (e.t === 'resist') {
-        floatText(e.uid, '🛡️ Imune', 'info'); await sleep(200 * k);
+        floatText(e.uid, '🛡️ Imune!', 'info'); await sleep(200 * k);
       } else if (e.t === 'death') {
-        const p = centerOf(e.uid); if (p) p.el.classList.add('dead'); NA.sfx('death');
-        await sleep(650 * k);
+        const p = posOf(e.uid);
+        if (p) { V.smoke(p.x, p.bottom - 10, 14, V.C.grey, 40); p.el.classList.add('dead'); floatText(e.uid, 'Derrotado!', 'info'); }
+        NA.sfx('death');
+        await sleep(700 * k);
       } else if (e.t === 'drain') {
         toast(e.side === 0 ? `💧 Você perdeu ${e.types.length} chakra` : `💧 Oponente perdeu ${e.types.length} chakra`);
       } else if (e.t === 'turn') {
@@ -514,8 +621,8 @@
         await sleep(150 * k);
       }
     }
+    if (A.b && A.screen === 'battle') updateStage();
   }
-
   async function doPlayerTurn(pay) {
     const b = A.b, st = b.st;
     closeModal();
@@ -531,6 +638,8 @@
   }
 
   function renderBattleBusy() {
+    if (A.b) A.b.preview = null;
+    $$('.pv,.pvbar').forEach((e) => e.remove());
     $$('.qbadge,.inc').forEach((e) => e.remove());
     $$('.unit.target,.mini.target').forEach((e) => e.classList.remove('target'));
     $$('.skill').forEach((e) => { e.classList.add('off'); e.classList.remove('sel', 'queued'); });
@@ -542,8 +651,8 @@
   async function aiTurn() {
     const b = A.b, st = b.st;
     b.busy = true; renderBattle();
-    splash('Turno do oponente');
-    await sleep(900 * spd());
+    ribbon('Vez do oponente', true);
+    await sleep(1100 * spd());
     if (A.screen !== 'battle' || A.b !== b) return;
     NA.aiMaybeExchange(st, 1);
     const plan = NA.aiPlan(st, 1, b.diff);
@@ -555,7 +664,7 @@
     if (st.winner != null) return endBattle();
     const gain = ev.filter((e) => e.t === 'gain' && e.side === 0).flatMap((e) => e.types);
     gain.forEach((k) => { const el = $(`.ck[data-ck="${k}"]`); if (el) el.classList.add('pulse'); });
-    splash('Sua vez!'); NA.sfx('turn');
+    ribbon(`Turno ${st.turnNo} · Sua vez`); NA.sfx('turn');
   }
 
   function endBattle() {
@@ -567,7 +676,22 @@
     NA.sfx(result === 'win' ? 'win' : 'lose');
     const li = levelInfo();
     const unlocks = r.newMissions.filter((m) => m.unlock).map((m) => NA.CHARS_BY_ID[m.unlock].name);
-    modal(`<div class="end"><div class="big ${result}">${result === 'win' ? 'VITÓRIA!' : result === 'loss' ? 'DERROTA' : 'EMPATE'}</div>
+    // cinemática final: vencedores comemoram, perdedores caem
+    b.busy = true;
+    const winSide = result === 'win' ? 0 : result === 'loss' ? 1 : -1;
+    $$('.unit').forEach((u) => {
+      const uid = +u.dataset.uid, side = uid >= 10 ? 1 : 0;
+      if (u.classList.contains('dead')) return;
+      u.classList.add(side === winSide ? 'pose' : 'defeated');
+    });
+    if (A.screen === 'battle') {
+      V.victory(result === 'win');
+      const d = document.createElement('div'); d.className = 'endsplash ' + result;
+      d.innerHTML = `<b>${result === 'win' ? 'VITÓRIA!' : result === 'loss' ? 'DERROTA' : 'EMPATE'}</b><small>${result === 'win' ? '勝利' : result === 'loss' ? '敗北' : '引分'}</small>`;
+      fx().appendChild(d); setTimeout(() => d.remove(), 2300 * spd());
+    }
+    setTimeout(() => { if (A.b !== b || A.screen !== 'battle') return; showEnd(); }, (A.screen === 'battle' ? 2300 : 0) * spd());
+    const showEnd = () => modal(`<div class="end"><div class="big ${result}">${result === 'win' ? 'VITÓRIA!' : result === 'loss' ? 'DERROTA' : 'EMPATE'}</div>
       <p class="mut" style="margin:4px 0">${result === 'win' ? (flawless ? 'Vitória perfeita — sem baixas!' : 'Seu time prevaleceu na arena.') : result === 'loss' ? 'Treine mais e volte mais forte.' : 'Ninguém ficou de pé.'}</p>
       <div class="endteams"><div>${b.team.map((id) => `<span class="ep">${NA.portraitHTML(id, 'e' + id)}</span>`).join('')}</div><b>VS</b><div>${b.enemy.map((id) => `<span class="ep foe">${NA.portraitHTML(id, 'x' + id)}</span>`).join('')}</div></div>
       <div class="gains"><div>✨ +${r.xp} XP</div><div>🏆 ${r.lp >= 0 ? '+' : ''}${r.lp} PL</div></div>
@@ -601,6 +725,7 @@
       case 'skill': if (b) onSkill(+x, +y); break;
       case 'eskill': if (b) { b.info = { type: 'skill', side: 1, ci: +x, si: +y }; renderBattle(); } break;
       case 'fighter': if (b) onFighter(+x); break;
+      case 'stagetap': if (b) { const u = pickUnit(ev.clientX, ev.clientY); if (u != null) onFighter(u); } break;
       case 'deq': ev.stopPropagation(); if (b && !b.busy) { b.q = b.q.filter((q) => q.ci !== +x); b.sel = null; b.targets = null; renderBattle(); } break;
       case 'ready': ready(); break;
       case 'pay': { const k = x, d = +y; const n = b.pay[k] + d; const sum = T.reduce((s, t) => s + b.pay[t], 0) + d; if (n >= 0 && n <= b.payAvail[k] && sum <= b.payNeed) b.pay[k] = n; payModal(); break; }
@@ -619,7 +744,8 @@
       case 'opt': {
         const s = A.save.settings;
         if (x === 'sound') { s.sound = !s.sound; NA.sfxEnabled = s.sound; }
-        if (x === 'speed') s.speed = s.speed === 2 ? 1 : 2;
+        if (x === 'speed') { const v = +y; s.speed = [0.7, 1, 2, 3].includes(v) ? v : 1; V.k = spd(); }
+        if (x === 'fx') { s.fx = ['alto', 'medio', 'baixo'].includes(y) ? y : 'alto'; V.setQuality(s.fx); }
         if (x === 'freeMode') s.freeMode = !s.freeMode;
         NA.writeSave(A.save); screens.options(); break;
       }

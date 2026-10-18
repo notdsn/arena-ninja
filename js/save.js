@@ -14,7 +14,7 @@
       charStats: {}, // id -> {used, wins}
       history: [], // ultimas partidas
       missionsDone: [],
-      settings: { difficulty: 'normal', sound: true, speed: 1, freeMode: false },
+      settings: { difficulty: 'normal', sound: true, speed: 1, freeMode: false, fx: 'alto' },
       lastTeam: ['naruto', 'sasuke', 'sakura'],
     };
   }

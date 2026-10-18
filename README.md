@@ -17,3 +17,8 @@ Saves corrompidos são copiados para `arenaNinja.save.backup.<timestamp>` antes 
 - `img/full/*.webp` — artes de corpo inteiro (PNG transparente) da Narutopedia, usadas no palco de batalha.
 - `img/arena.svg` — cenário do palco (desenhado por código).
 - Se uma imagem falhar, o retrato SVG gerado por código aparece no lugar.
+
+## Efeitos (v3)
+- Cada jutsu tem efeito próprio desenhado em canvas 2D (`js/vfx.js`), com cinemática (kanji + zoom) nos golpes fortes, hit-stop, tremor proporcional ao dano e auras de estado.
+- Opções: **Efeitos visuais** (Alto/Médio/Baixo) e **Velocidade da batalha** (Lenta/Normal/Rápida/Turbo). Campos novos no save são aditivos (sem perda de progresso).
+- Ícones de jutsu em `img/sk/` (Narutopedia, guardados no repo); os que faltam usam emoji.

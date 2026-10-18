@@ -1,0 +1,3 @@
+/* ícones de jutsu disponíveis em img/sk (Narutopedia) */
+globalThis.NA = globalThis.NA || {};
+NA.SKILL_IMGS = new Set(["gaara0", "gaara1", "gaara2", "gaara3", "hinata0", "hinata1", "itachi0", "itachi1", "itachi2", "itachi3", "kakashi0", "kakashi1", "kakashi2", "kakashi3", "kiba0", "kiba1", "kiba2", "kiba3", "kisame0", "kisame1", "kisame2", "kisame3", "lee0", "lee1", "lee2", "naruto0", "naruto1", "naruto2", "naruto3", "neji0", "neji1", "neji2", "orochimaru0", "orochimaru1", "orochimaru2", "orochimaru3", "sakura0", "sakura1", "sakura2", "sakura3", "sasuke0", "sasuke1", "sasuke2", "sasuke3", "shikamaru0", "shikamaru1", "shikamaru3", "shino0", "shino1", "shino2", "shino3", "tenten0", "tenten1", "tenten3"]);

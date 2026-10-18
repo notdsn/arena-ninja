@@ -295,3 +295,112 @@ table.lad tr.me td{background:rgba(255,122,26,.12);font-weight:800}
   .pronto{min-height:48px}
   .queue{min-height:44px}
 }
+
+/* ===== v3: efeitos dos jutsus e batalha ===== */
+#vfx{position:fixed;left:0;top:0;pointer-events:none;z-index:39}
+.cine{position:fixed;inset:0;z-index:38;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(0,0,0,.25),rgba(0,0,0,.78));animation:cineIn .25s ease-out}
+.cine::before,.cine::after{content:"";position:absolute;left:0;right:0;height:11vh;background:#000;animation:barsIn .3s ease-out}
+.cine::before{top:0}.cine::after{bottom:0}
+.cine-k{font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif CJK JP",serif;font-size:min(30vw,170px);font-weight:900;line-height:1;color:#ffd7a8;text-shadow:0 0 30px #ff7a1a,0 0 70px #ff4d00,0 6px 0 #4a1600;animation:kanjiIn .7s cubic-bezier(.2,1.4,.4,1);letter-spacing:.04em}
+.cine.foe .cine-k{color:#ffd0d0;text-shadow:0 0 30px #e33b3b,0 0 70px #a00,0 6px 0 #300}
+.cine-n{margin-top:10px;padding:6px 22px;font-weight:900;font-size:clamp(18px,5vw,30px);color:#fff;letter-spacing:.06em;text-transform:uppercase;background:linear-gradient(90deg,transparent,rgba(255,122,26,.9) 20%,rgba(255,122,26,.9) 80%,transparent);animation:nameIn .5s .1s both ease-out;white-space:nowrap}
+.cine.foe .cine-n{background:linear-gradient(90deg,transparent,rgba(200,30,30,.92) 20%,rgba(200,30,30,.92) 80%,transparent)}
+.cine.out{animation:cineOut .45s forwards}
+@keyframes cineIn{from{opacity:0}}
+@keyframes cineOut{to{opacity:0}}
+@keyframes barsIn{from{height:0}}
+@keyframes kanjiIn{from{transform:scale(2.4);opacity:0;filter:blur(8px)}}
+@keyframes nameIn{from{transform:translateX(-40px);opacity:0}}
+.fxdom{position:absolute;transform:translate(-50%,-50%);font-size:34px;line-height:1;will-change:transform,opacity;filter:drop-shadow(0 3px 4px #000a)}
+.fxdom.big{font-size:64px}.fxdom.dog{font-size:30px}.fxdom.crow{font-size:24px}
+.fxclone{position:absolute;object-fit:contain;object-position:bottom center;pointer-events:none;will-change:transform,opacity;filter:drop-shadow(0 0 6px rgba(120,200,255,.7))}
+.fxclone.flip{transform:scaleX(-1)}
+/* realce de turno */
+.unit.acting .rend{filter:drop-shadow(0 0 6px #ffb000) drop-shadow(0 0 14px rgba(255,122,26,.9))}
+.unit.foe.acting .rend{filter:drop-shadow(0 0 6px #ff5050) drop-shadow(0 0 14px rgba(227,59,59,.9))}
+.unit.acting .shadow{background:radial-gradient(ellipse,rgba(255,150,40,.9),transparent 70%)}
+.unit.aimed .shadow{background:radial-gradient(ellipse,rgba(255,40,40,.95),transparent 70%);animation:aimPulse .5s infinite alternate}
+.unit.aimed-ally .shadow{background:radial-gradient(ellipse,rgba(80,220,140,.95),transparent 70%)}
+.unit.aimed::after{content:"🎯";position:absolute;left:50%;top:30%;transform:translate(-50%,-50%);font-size:22px;animation:aimPulse .5s infinite alternate;z-index:6;pointer-events:none}
+@keyframes aimPulse{to{opacity:.45;transform:translate(-50%,-50%) scale(1.15)}}
+.unit.hitflash .rend{animation:hitFlash .32s ease-out}
+@keyframes hitFlash{0%{filter:brightness(3) saturate(0)}40%{filter:brightness(1.6) sepia(1) hue-rotate(-40deg) saturate(4)}100%{filter:none}}
+.actline{font-size:13px;line-height:1.35}
+.actline .ski.mini{vertical-align:middle}
+.tagme,.tagfoe{display:inline-block;padding:0 6px;border-radius:6px;font-size:11px;font-weight:800;margin-right:3px}
+.tagme{background:#ff7a1a;color:#1a0a00}.tagfoe{background:#c22;color:#fff}
+/* faixa de turno */
+.ribbon{position:absolute;left:0;right:0;transform:translateY(-50%);height:46px;display:flex;align-items:center;justify-content:center;animation:ribbon 1.3s ease forwards;pointer-events:none}
+.ribbon span{font-weight:900;font-size:22px;letter-spacing:.08em;text-transform:uppercase;color:#fff;text-shadow:0 2px 0 #000,0 0 12px #000}
+.ribbon.me{background:linear-gradient(90deg,transparent,rgba(255,122,26,.88) 25%,rgba(255,122,26,.88) 75%,transparent)}
+.ribbon.foe{background:linear-gradient(90deg,transparent,rgba(190,25,25,.9) 25%,rgba(190,25,25,.9) 75%,transparent)}
+@keyframes ribbon{0%{clip-path:inset(0 100% 0 0);opacity:1}18%{clip-path:inset(0 0 0 0)}78%{clip-path:inset(0 0 0 0);opacity:1}100%{clip-path:inset(0 0 0 100%);opacity:.6}}
+/* números */
+.float small{display:block;font-size:10px;letter-spacing:.06em;text-transform:uppercase;text-align:center;opacity:.9}
+.float.crit{color:#ffe14d;-webkit-text-stroke:1px #a00;animation:floatCrit 1.3s ease-out forwards}
+@keyframes floatCrit{0%{transform:translate(-50%,-50%) scale(2.2);opacity:0}15%{transform:translate(-50%,-50%) scale(1);opacity:1}25%{transform:translate(-50%,-50%) scale(1.15)}100%{transform:translate(-50%,-150%) scale(1);opacity:0}}
+/* prévia de dano */
+.hp{position:relative}
+.pvbar{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(45deg,#fff 0 3px,#ff3030 3px 6px);animation:pvBlink .6s infinite alternate;z-index:1}
+.pvbar.heal{background:repeating-linear-gradient(45deg,#fff 0 3px,#3ad070 3px 6px)}
+@keyframes pvBlink{from{opacity:.95}to{opacity:.35}}
+.pv{align-self:center;font-weight:900;font-size:12px;padding:0 6px;border-radius:7px;margin-bottom:1px;box-shadow:0 2px 6px #000a;animation:pvPop .25s ease-out}
+.pv.d{background:#e33b3b;color:#fff}.pv.h{background:#2fb866;color:#04140a}
+@keyframes pvPop{from{transform:scale(1.6)}}
+.mini .pv{position:absolute;top:-8px;left:50%;transform:translateX(-50%);z-index:3}
+/* ícones de jutsu */
+.ski{position:relative;display:inline-grid;place-items:center;width:100%;height:100%;border-radius:inherit;overflow:hidden}
+.ski b{font-size:22px;font-weight:400;line-height:1;filter:drop-shadow(0 2px 2px #000)}
+.ski i{position:absolute;inset:0;background-size:cover;background-position:center}
+.ski.t-tai{background:radial-gradient(circle at 35% 30%,#7bf09f,#156b36)}
+.ski.t-blood{background:radial-gradient(circle at 35% 30%,#ff7b7b,#7a1010)}
+.ski.t-nin{background:radial-gradient(circle at 35% 30%,#7fb5ff,#173d8a)}
+.ski.t-gen{background:radial-gradient(circle at 35% 30%,#fff,#7c8597)}
+.ski.t-rand{background:radial-gradient(circle at 35% 30%,#5a5f6c,#1c1f27)}
+.ski.mini{width:20px;height:20px;border-radius:5px;vertical-align:-4px}
+.ski.mini b{font-size:13px}
+.skill .ski{position:absolute;inset:0}
+.skill .ski::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18),inset 0 -14px 14px -6px rgba(0,0,0,.65)}
+.skill .costs,.skill .cdn{z-index:2}
+.skill.off .ski{filter:grayscale(.85) brightness(.55)}
+.q .ski{width:26px;height:26px;border-radius:7px}
+.skitem .ico .ski{width:100%;height:100%;border-radius:10px}
+/* auras */
+.aura-back,.aura-front{position:absolute;left:50%;bottom:0;pointer-events:none;display:none}
+.unit.a-shield .aura-front{display:block;width:78%;height:76%;transform:translateX(-50%);border-radius:50% 50% 46% 46%;background:radial-gradient(ellipse at 50% 40%,rgba(255,220,150,.05) 55%,rgba(255,200,110,.32) 80%,rgba(255,235,190,.65) 96%,transparent 100%);box-shadow:0 0 14px rgba(255,190,90,.45);animation:shieldPulse 2.2s ease-in-out infinite;z-index:4}
+.unit.a-inv .rend{animation:invGlow 1.4s ease-in-out infinite}
+.unit.a-inv .aura-back{display:block;width:90%;height:84%;transform:translateX(-50%);border-radius:50%;background:radial-gradient(ellipse,rgba(160,220,255,.45),transparent 68%);animation:shieldPulse 1.4s ease-in-out infinite}
+.unit.a-dr .shadow{box-shadow:0 0 0 2px rgba(110,170,255,.85),0 0 14px rgba(90,150,255,.8);border-radius:50%}
+.unit.a-burn .aura-front{display:block;width:70%;height:70%;transform:translateX(-50%);background:radial-gradient(ellipse at 50% 90%,rgba(40,0,40,.6),transparent 70%);mix-blend-mode:multiply;z-index:4}
+.unit.a-burn .rend{filter:drop-shadow(0 -4px 6px rgba(70,0,90,.95)) drop-shadow(0 0 3px #000)}
+.unit.a-burn .ovl::before{content:"🔥";position:absolute;left:50%;top:45%;font-size:22px;filter:hue-rotate(250deg) saturate(2) brightness(.5);animation:burnFlick .5s infinite alternate}
+.unit.a-poison .rend{filter:drop-shadow(0 0 5px rgba(140,60,255,.85)) hue-rotate(-10deg)}
+.unit.a-poison .ovl::after{content:"☠️";position:absolute;right:18%;top:38%;font-size:15px;animation:bob 1.6s infinite}
+.unit.a-gates .aura-back{display:block;width:88%;height:80%;transform:translateX(-50%);background:radial-gradient(ellipse at 50% 70%,rgba(80,255,140,.45),transparent 65%);animation:gatesFlick .35s infinite alternate}
+.unit.a-buff:not(.a-gates) .shadow{box-shadow:0 0 12px rgba(255,170,40,.75);border-radius:50%}
+.unit.a-weak .rend{filter:saturate(.55) brightness(.85)}
+.unit.stunned .rend{filter:grayscale(.5) brightness(.8)}
+@keyframes shieldPulse{0%,100%{opacity:.75;transform:translateX(-50%) scale(1)}50%{opacity:1;transform:translateX(-50%) scale(1.03)}}
+@keyframes invGlow{0%,100%{filter:drop-shadow(0 0 4px #bfe6ff) brightness(1.1)}50%{filter:drop-shadow(0 0 12px #fff) brightness(1.35)}}
+@keyframes burnFlick{to{transform:scale(1.2) translateY(-3px)}}
+@keyframes gatesFlick{to{opacity:.6;transform:translateX(-50%) scaleY(1.08)}}
+/* final */
+.unit.pose .body{animation:pose .7s ease-out both}
+.unit.pose .rend{animation:poseBob 1.2s .7s ease-in-out infinite}
+.unit.defeated .body{animation:kneel .8s ease-in forwards}
+@keyframes pose{0%{transform:none}40%{transform:translateY(-26px) scale(1.08)}100%{transform:translateY(-4px) scale(1.04)}}
+@keyframes poseBob{50%{transform:translateY(-5px)}}
+@keyframes kneel{to{transform:translateY(8%) scaleY(.86);filter:grayscale(.8) brightness(.6)}}
+.endsplash{position:absolute;left:0;right:0;top:34%;text-align:center;animation:endIn 2.3s ease forwards}
+.endsplash b{display:block;font-size:clamp(46px,14vw,96px);font-weight:900;letter-spacing:.06em;color:#ffcc66;text-shadow:0 0 24px #ff7a1a,0 5px 0 #5a2200}
+.endsplash.loss b{color:#ff8a8a;text-shadow:0 0 24px #a00,0 5px 0 #300}
+.endsplash small{font-size:26px;color:#fff;opacity:.85}
+@keyframes endIn{0%{transform:scale(2.5);opacity:0}15%{transform:scale(1);opacity:1}85%{opacity:1}100%{opacity:0}}
+/* opções */
+.toggle.col{flex-direction:column;align-items:stretch;gap:8px}
+.seg{display:flex;gap:4px;background:#0f131b;border:1px solid var(--line);border-radius:12px;padding:3px}
+.seg button{flex:1;padding:8px 4px;border-radius:9px;border:0;background:transparent;color:var(--mut,#9aa3b5);font-weight:700;font-size:13px}
+.seg button.on{background:linear-gradient(180deg,#ff9440,#e05a00);color:#1a0a00}
+.unit .body,.unit .shadow{pointer-events:none}
+.skill .ski b{font-size:calc(var(--sk) * .44)}
+.cine-k{white-space:nowrap}
