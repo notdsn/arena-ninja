@@ -153,3 +153,11 @@ ${hairFront(p)}${band(p)}${p.marks === 'gaara' ? marks({ marks: 'gaaraTop' }) : 
 </svg>`;
   };
 })();
+/* Retrato oficial (imagem local) com o SVG como reserva caso a imagem não carregue */
+(function () {
+  const NA = globalThis.NA;
+  NA.IMG_V = 2;
+  NA.portraitHTML = function (id, k) {
+    return `<span class="pt">${NA.portraitSVG(id, { k: k || '' })}<i style="background-image:url('img/p/${id}.webp?v=${NA.IMG_V}')"></i></span>`;
+  };
+})();

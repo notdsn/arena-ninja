@@ -92,12 +92,12 @@
     const s = A.save;
     const tiles = NA.CHARS.map((c) => {
       const un = NA.isUnlocked(s, c.id), inT = A.team.includes(c.id);
-      return `<button class="tile ${inT ? 'in' : ''} ${un ? '' : 'locked'}" data-a="char:${c.id}"><div class="pic">${NA.portraitSVG(c.id, { k: 't' })}</div>${un ? '' : '<div class="lock">🔒</div>'}<div class="nm">${esc(c.short)}</div></button>`;
+      return `<button class="tile ${inT ? 'in' : ''} ${un ? '' : 'locked'}" data-a="char:${c.id}"><div class="pic">${NA.portraitHTML(c.id, 't')}</div>${un ? '' : '<div class="lock">🔒</div>'}<div class="nm">${esc(c.short)}</div></button>`;
     }).join('');
     const slots = [0, 1, 2].map((i) => {
       const id = A.team[i];
       if (!id) return `<div class="slot">Vazio</div>`;
-      return `<div class="slot filled" data-a="char:${id}">${NA.portraitSVG(id, { k: 's' + i })}<button class="x" data-a="rm:${id}" aria-label="Remover">✕</button><div class="nm">${esc(NA.CHARS_BY_ID[id].short)}</div></div>`;
+      return `<div class="slot filled" data-a="char:${id}">${NA.portraitHTML(id, 's' + i)}<button class="x" data-a="rm:${id}" aria-label="Remover">✕</button><div class="nm">${esc(NA.CHARS_BY_ID[id].short)}</div></div>`;
     }).join('');
     const d = s.settings.difficulty;
     app.innerHTML = `<section class="screen">
@@ -122,7 +122,7 @@
     if (!un) btn = `<div class="card mut" style="text-align:center">🔒 Bloqueado — Missão “${esc(m.name)}”: ${esc(m.desc)}</div>`;
     else if (inT) btn = `<button class="btn danger" style="width:100%" data-a="rm:${id}">Remover do time</button>`;
     else btn = `<button class="btn primary" style="width:100%" data-a="add:${id}" ${A.team.length >= 3 ? 'disabled' : ''}>${A.team.length >= 3 ? 'Time completo' : 'Adicionar ao time'}</button>`;
-    modal(`<div class="det-head"><div class="portrait">${NA.portraitSVG(id, { k: 'd' })}</div><div><h3>${esc(c.name)}</h3><div class="mut" style="font-size:13px">${esc(c.title)} · ${esc(c.rank)}</div>
+    modal(`<div class="det-head"><div class="portrait">${NA.portraitHTML(id, 'd')}</div><div><h3>${esc(c.name)}</h3><div class="mut" style="font-size:13px">${esc(c.title)} · ${esc(c.rank)}</div>
       <div class="mut" style="font-size:12px;margin-top:4px">Partidas: ${st.used} · Vitórias: ${st.wins}</div></div></div>
       <p style="margin:0 0 10px;font-size:14px;color:#d3d9e4">${esc(c.bio)}</p>
       <div class="sklist">${c.skills.map(skillDetail).join('')}</div>
@@ -206,6 +206,7 @@
     A.b = { st, q: [], sel: null, busy: false, info: null, diff: A.save.settings.difficulty, rival: RIVALS[Math.floor(Math.random() * RIVALS.length)], enemy, team: A.team.slice() };
     A.screen = 'battle';
     closeModal();
+    app.innerHTML = '';
     renderBattle();
     splash('Sua vez!');
     NA.sfx('turn');
@@ -217,20 +218,39 @@
     return `<span class="s ${good ? 'good' : 'bad'}">${s.icon || '•'}${s.stacks > 1 ? `<i>${s.stacks}</i>` : n < 50 ? `<i>${n}</i>` : ''}</span>`;
   }
 
-  function fighterHTML(c, mine) {
-    const b = A.b, st = b.st, def = NA.CHARS_BY_ID[c.id];
+  const LANES = [{ x: 13, b: 35, s: 0.84, z: 1 }, { x: 25, b: 17, s: 0.92, z: 2 }, { x: 39, b: 1, s: 1, z: 3 }];
+  function hpBar(c) {
     const hpc = c.hp > 60 ? '#35c24a' : c.hp > 30 ? '#f2b705' : '#e33b3b';
-    const q = mine ? b.q.find((x) => x.ci === c.idx) : null;
-    const inc = b.q.filter((x) => x.tgt === c.uid || (x.aoe && x.aoeSide === c.side)).map((x) => NA.skillOf(st.teams[0].chars[x.ci], x.si).icon);
+    return `<div class="hp" data-hp="${c.uid}"><i class="ghost" style="width:${c.hp}%"></i><i class="bar" style="width:${c.hp}%;background:${hpc}"></i><span>${c.hp}</span></div>`;
+  }
+  function unitHTML(c) {
+    const L = LANES[c.idx], foe = c.side === 1, x = foe ? 100 - L.x : L.x, def = NA.CHARS_BY_ID[c.id];
+    return `<div class="unit ${foe ? 'foe' : 'me'}" data-uid="${c.uid}" style="left:${x}%;bottom:${L.b}%;z-index:${L.z};--s:${L.s}">
+      <div class="shadow"></div>
+      <div class="body" data-a="fighter:${c.uid}"><div class="flip"><img class="rend" alt="${esc(def.short)}" src="img/full/${c.id}.webp?v=${NA.IMG_V}" style="animation-delay:-${((c.uid * 0.37) % 2.4).toFixed(2)}s" onerror="this.parentNode.classList.add('noimg');this.remove()"><span class="fb">${NA.portraitHTML(c.id, 'f' + c.uid)}</span></div></div>
+      <div class="ubar" data-a="fighter:${c.uid}"></div><div class="ovl"></div></div>`;
+  }
+  function updateStage() {
+    const b = A.b, st = b.st;
+    for (const c of NA.allChars(st)) {
+      const u = $(`.unit[data-uid="${c.uid}"]`); if (!u) continue;
+      const def = NA.CHARS_BY_ID[c.id];
+      const stunned = c.alive && c.st.some((s) => s.stun === true);
+      const tg = !!(b.sel && b.targets && b.targets.includes(c.uid));
+      u.classList.toggle('dead', !c.alive); u.classList.toggle('stunned', stunned); u.classList.toggle('target', tg);
+      $('.ubar', u).innerHTML = `<span class="un">${stunned ? '<b class="stun-ic">💫</b>' : ''}${esc(def.short)}</span>${hpBar(c)}<div class="sts">${c.alive ? c.st.map((s) => stIcon(st, c, s)).join('') : ''}</div>`;
+      const q = c.side === 0 ? b.q.find((x) => x.ci === c.idx) : null;
+      const inc = b.q.filter((x) => x.tgt === c.uid || (x.aoe && x.aoeSide === c.side)).map((x) => NA.skillOf(st.teams[0].chars[x.ci], x.si).icon);
+      void q;
+      $('.ovl', u).innerHTML = (inc.length ? `<div class="inc">${inc.map((i) => `<span>${i}</span>`).join('')}</div>` : '');
+    }
+  }
+  function prowHTML(c) {
+    const b = A.b;
+    const q = b.q.find((x) => x.ci === c.idx);
     const tg = b.sel && b.targets && b.targets.includes(c.uid);
-    const stunned = c.alive && c.st.some((s) => s.stun === true);
-    return `<div class="fighter ${mine ? 'me' : 'foe'} ${c.alive ? '' : 'dead'} ${tg ? 'target' : ''}" data-uid="${c.uid}" data-a="fighter:${c.uid}">
-      <div class="portrait">${NA.portraitSVG(c.id, { k: 'b' + c.uid })}${stunned ? '<span class="stunned-ic">💫</span>' : ''}</div>
-      ${q ? `<button class="qbadge" data-a="deq:${c.idx}" aria-label="Cancelar">${NA.skillOf(c, q.si).icon}</button>` : ''}
-      ${inc.length ? `<div class="inc">${inc.map((i) => `<span>${i}</span>`).join('')}</div>` : ''}
-      <div class="nm">${esc(def.short)}</div>
-      <div class="hp"><i class="ghost" style="width:${c.hp}%"></i><i class="bar" style="width:${c.hp}%;background:${hpc}"></i><span>${c.hp}/100</span></div>
-      <div class="sts">${c.st.map((s) => stIcon(st, c, s)).join('')}</div></div>`;
+    return `<div class="prow ${c.alive ? '' : 'dead'}"><div class="mini ${tg ? 'target' : ''}" data-a="fighter:${c.uid}"><div class="mp">${NA.portraitHTML(c.id, 'm' + c.uid)}${c.alive ? '' : '<b class="skull">☠</b>'}</div>${q ? `<button class="qbadge" data-a="deq:${c.idx}" aria-label="Cancelar">${NA.skillOf(c, q.si).icon}</button>` : ''}${hpBar(c)}</div>
+      <div class="skills">${[0, 1, 2, 3].map((si) => skillBtn(c, si)).join('')}</div></div>`;
   }
 
   function skillBtn(c, si) {
@@ -267,34 +287,33 @@
         ${sts ? `<ul class="stl">${sts}</ul>` : '<div class="hint">Nenhum efeito ativo.</div>'}${skills}`;
     }
     const used = b.q.length;
-    return `<h4>🍥 Sua vez</h4><div class="hint">Toque em uma habilidade e depois no alvo. Toque nos ninjas para ver efeitos ativos. ${used ? `<br><b style="color:var(--or2)">${used} técnica(s) na fila.</b>` : ''}</div>`;
+    return `<h4>🍥 Sua vez</h4><div class="hint">Toque em uma habilidade e depois no alvo (no palco ou no retrato). Toque nos ninjas para ver efeitos. ${used ? `<br><b style="color:var(--or2)">${used} técnica(s) na fila.</b>` : ''}</div>`;
   }
 
+  function buildBattle() {
+    const st = A.b.st;
+    app.innerHTML = `<section class="battle"><div class="bt-top" id="bt-top"></div>
+      <div class="stage" id="stage"><div class="stage-fx"></div>${NA.allChars(st).map(unitHTML).join('')}</div>
+      <div class="panel" id="panel"></div><div class="info" id="info"></div><div class="bt-bottom" id="bt-bottom"></div></section>`;
+  }
   function renderBattle() {
     const b = A.b, st = b.st;
+    if (!$('#stage')) buildBattle();
     const pool = st.teams[0].chakra;
     const avail = NA.poolAfterSpecific(st, 0, b.q);
     const tot = T.reduce((a, k) => a + pool[k], 0);
-    const rows = [0, 1, 2].map((i) => {
-      const me = st.teams[0].chars[i], foe = st.teams[1].chars[i];
-      return `<div class="bt-row ${me.alive ? '' : 'dead'}">${fighterHTML(me, true)}<div class="skills">${[0, 1, 2, 3].map((si) => skillBtn(me, si)).join('')}</div>${fighterHTML(foe, false)}</div>`;
-    }).join('');
     const myTurn = st.side === 0 && !b.busy && st.winner == null;
-    const qh = b.q.map((x) => `<button class="q" data-a="deq:${x.ci}">${NA.skillOf(st.teams[0].chars[x.ci], x.si).icon}</button>`).join('');
-    app.innerHTML = `<section class="battle">
-      <div class="bt-top">
-        <div class="turninfo ${st.side === 1 ? 'foe' : ''}">Turno ${st.turnNo}<b>${st.winner != null ? 'Fim' : st.side === 0 ? 'Sua vez' : 'Oponente'}</b></div>
+    $('#bt-top').innerHTML = `<div class="turninfo ${st.side === 1 ? 'foe' : ''}">Turno ${st.turnNo}<b>${st.winner != null ? 'Fim' : st.side === 0 ? 'Sua vez' : 'Oponente'}</b></div>
         <div class="chakra">${T.map((k) => `<div class="ck" data-ck="${k}" title="${NA.TYPE_INFO[k].name}"><i class="cd ${k}"></i>${avail[k]}</div>`).join('')}<div class="ck tot">Σ${tot}</div></div>
         <button class="iconbtn" data-a="exchange" ${myTurn ? '' : 'disabled'} aria-label="Trocar chakra">🔄</button>
         <button class="iconbtn" data-a="log" aria-label="Registro">📜</button>
-        <button class="iconbtn" data-a="bmenu" aria-label="Menu">⋯</button>
-      </div>
-      <div class="vs"><span><b>${esc(A.save.profile.name)}</b></span><span>${({ facil: 'Fácil', normal: 'Normal', dificil: 'Difícil' })[b.diff]}</span><span>vs <b>${esc(b.rival)}</b></span></div>
-      <div class="field">${rows}</div>
-      <div class="info">${infoHTML()}</div>
-      <div class="bt-bottom"><div class="queue">${qh || '<span>Fila vazia</span>'}</div>
-        <button class="btn primary pronto ${myTurn ? '' : 'wait'}" data-a="ready" ${myTurn ? '' : 'disabled'}>${myTurn ? 'PRONTO' : '…'}</button></div>
-    </section>`;
+        <button class="iconbtn" data-a="bmenu" aria-label="Menu">⋯</button>`;
+    $('#panel').innerHTML = st.teams[0].chars.map(prowHTML).join('');
+    $('#info').innerHTML = infoHTML();
+    const qh = b.q.map((x) => `<button class="q" data-a="deq:${x.ci}">${NA.skillOf(st.teams[0].chars[x.ci], x.si).icon}</button>`).join('');
+    $('#bt-bottom').innerHTML = `<div class="queue">${qh || `<span>vs <b>${esc(b.rival)}</b> · ${({ facil: 'Fácil', normal: 'Normal', dificil: 'Difícil' })[b.diff]}</span>`}</div>
+        <button class="btn primary pronto ${myTurn ? '' : 'wait'}" data-a="ready" ${myTurn ? '' : 'disabled'}>${myTurn ? 'PRONTO' : '…'}</button>`;
+    updateStage();
   }
 
   function onSkill(ci, si) {
@@ -371,49 +390,78 @@
   // ---------- efeitos visuais ----------
   const fx = () => $('#fx-layer');
   function centerOf(uid) {
-    const el = $(`.fighter[data-uid="${uid}"] .portrait`);
-    if (!el) return null;
-    const r = el.getBoundingClientRect();
-    return { x: r.left + r.width / 2, y: r.top + r.height / 2, el: el.parentElement };
+    const u = $(`.unit[data-uid="${uid}"]`);
+    if (!u) return null;
+    const t = $('.rend', u) || $('.fb', u) || $('.body', u);
+    const r = t.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height * 0.42, el: u, body: $('.body', u) };
   }
   function floatText(uid, text, cls) {
     const p = centerOf(uid); if (!p) return;
     const d = document.createElement('div'); d.className = 'float ' + cls; d.textContent = text;
-    const w = cls === 'info' ? 70 : 30; d.style.left = Math.max(w, Math.min(window.innerWidth - w, p.x + (Math.random() * 16 - 8))) + 'px'; d.style.top = p.y + 'px';
+    const w = cls === 'info' ? 70 : 30; d.style.left = Math.max(w, Math.min(window.innerWidth - w, p.x + (Math.random() * 16 - 8))) + 'px'; d.style.top = p.y - 10 + 'px';
     fx().appendChild(d); setTimeout(() => d.remove(), 1200);
   }
   function sparks(uid, color) {
     const p = centerOf(uid); if (!p || !Element.prototype.animate) return;
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 12; i++) {
       const s = document.createElement('div'); s.className = 'spark'; s.style.left = p.x + 'px'; s.style.top = p.y + 'px'; s.style.background = color;
       fx().appendChild(s);
-      const a = Math.random() * Math.PI * 2, r = 25 + Math.random() * 30;
-      s.animate([{ transform: 'translate(-50%,-50%) scale(1)', opacity: 1 }, { transform: `translate(calc(-50% + ${Math.cos(a) * r}px), calc(-50% + ${Math.sin(a) * r}px)) scale(.2)`, opacity: 0 }], { duration: 500, easing: 'ease-out' });
-      setTimeout(() => s.remove(), 520);
+      const a = Math.random() * Math.PI * 2, r = 25 + Math.random() * 35;
+      s.animate([{ transform: 'translate(-50%,-50%) scale(1)', opacity: 1 }, { transform: `translate(calc(-50% + ${Math.cos(a) * r}px), calc(-50% + ${Math.sin(a) * r}px)) scale(.2)`, opacity: 0 }], { duration: 520, easing: 'ease-out' });
+      setTimeout(() => s.remove(), 540);
     }
+  }
+  function impact(uid, icon, kind) {
+    const p = centerOf(uid); if (!p || !Element.prototype.animate) return;
+    const ring = document.createElement('div'); ring.className = 'ring ' + (kind || ''); ring.style.left = p.x + 'px'; ring.style.top = p.y + 'px';
+    const ic = document.createElement('div'); ic.className = 'impact'; ic.textContent = icon; ic.style.left = p.x + 'px'; ic.style.top = p.y + 'px';
+    fx().appendChild(ring); fx().appendChild(ic);
+    ring.animate([{ transform: 'translate(-50%,-50%) scale(.2)', opacity: 1 }, { transform: 'translate(-50%,-50%) scale(1.8)', opacity: 0 }], { duration: 520, easing: 'ease-out' });
+    ic.animate([{ transform: 'translate(-50%,-50%) scale(.3) rotate(-20deg)', opacity: 0 }, { transform: 'translate(-50%,-50%) scale(1.7) rotate(8deg)', opacity: 1, offset: 0.35 }, { transform: 'translate(-50%,-60%) scale(1.3)', opacity: 0 }], { duration: 650, easing: 'ease-out' });
+    setTimeout(() => { ring.remove(); ic.remove(); }, 680);
+  }
+  function lunge(uid, toUid, melee) {
+    const a = centerOf(uid), b = centerOf(toUid); if (!a || !b || !a.body.animate) return 0;
+    const dx = (b.x - a.x) * (melee ? 0.6 : 0.1), dy = (b.y - a.y) * (melee ? 0.45 : 0.05);
+    const dur = (melee ? 640 : 420) * spd();
+    a.body.animate([{ transform: 'translate(0,0)' }, { transform: `translate(${-dx * 0.08}px,-8px) scale(1.03)`, offset: 0.2 }, { transform: `translate(${dx}px,${dy}px) scale(1.08)`, offset: 0.55 }, { transform: `translate(${dx * 0.9}px,${dy * 0.9}px) scale(1.06)`, offset: 0.7 }, { transform: 'translate(0,0)' }], { duration: dur, easing: 'ease-in-out' });
+    return dur * 0.55;
+  }
+  function hop(uid) {
+    const a = centerOf(uid); if (!a || !a.body.animate) return;
+    a.body.animate([{ transform: 'none' }, { transform: 'translateY(-16px) scale(1.06)', offset: 0.4 }, { transform: 'none' }], { duration: 480 * spd(), easing: 'ease-out' });
+  }
+  function knock(uid) {
+    const a = centerOf(uid); if (!a || !a.body.animate) return;
+    const dir = uid >= 10 ? 1 : -1;
+    a.body.animate([{ transform: 'none', filter: 'none' }, { transform: `translateX(${dir * 14}px) rotate(${dir * 4}deg)`, filter: 'brightness(2.4) saturate(.3)', offset: 0.25 }, { transform: `translateX(${dir * 6}px)`, filter: 'brightness(1.3)', offset: 0.55 }, { transform: 'none', filter: 'none' }], { duration: 380 * spd(), easing: 'ease-out' });
   }
   function projectile(fromUid, toUid, icon) {
     const a = centerOf(fromUid), b = centerOf(toUid);
     if (!a || !b || !Element.prototype.animate) return;
     const d = document.createElement('div'); d.className = 'proj'; d.textContent = icon; d.style.left = '0px'; d.style.top = '0px';
     fx().appendChild(d);
-    d.animate([{ transform: `translate(${a.x}px,${a.y}px) translate(-50%,-50%) scale(.6) rotate(0deg)`, opacity: 0.2 }, { transform: `translate(${(a.x + b.x) / 2}px,${Math.min(a.y, b.y) - 30}px) translate(-50%,-50%) scale(1.3) rotate(180deg)`, opacity: 1 }, { transform: `translate(${b.x}px,${b.y}px) translate(-50%,-50%) scale(1) rotate(360deg)`, opacity: 1 }], { duration: 380 * spd(), easing: 'ease-in' });
-    setTimeout(() => d.remove(), 380 * spd());
+    d.animate([{ transform: `translate(${a.x}px,${a.y}px) translate(-50%,-50%) scale(.6) rotate(0deg)`, opacity: 0.2 }, { transform: `translate(${(a.x + b.x) / 2}px,${Math.min(a.y, b.y) - 40}px) translate(-50%,-50%) scale(1.4) rotate(180deg)`, opacity: 1 }, { transform: `translate(${b.x}px,${b.y}px) translate(-50%,-50%) scale(1) rotate(360deg)`, opacity: 1 }], { duration: 400 * spd(), easing: 'ease-in' });
+    setTimeout(() => d.remove(), 400 * spd());
   }
   function banner(text, foe) {
     const d = document.createElement('div'); d.className = 'banner' + (foe ? ' foe' : ''); d.textContent = text;
+    const s = $('#stage'); if (s) { const r = s.getBoundingClientRect(); d.style.top = r.top + 26 + 'px'; }
     fx().appendChild(d); setTimeout(() => d.remove(), 950);
   }
   function splash(text) {
     const d = document.createElement('div'); d.className = 'turn-splash title'; d.textContent = text;
+    const s = $('#stage'); if (s) { const r = s.getBoundingClientRect(); d.style.top = r.top + r.height * 0.4 + 'px'; }
     fx().appendChild(d); setTimeout(() => d.remove(), 1050);
   }
   function setHP(uid, hp) {
-    const f = $(`.fighter[data-uid="${uid}"]`); if (!f) return;
-    const bar = $('.hp .bar', f), gh = $('.hp .ghost', f), sp = $('.hp span', f);
-    if (bar) { bar.style.width = hp + '%'; bar.style.background = hp > 60 ? '#35c24a' : hp > 30 ? '#f2b705' : '#e33b3b'; }
-    if (gh) gh.style.width = hp + '%';
-    if (sp) sp.textContent = hp + '/100';
+    for (const h of $$(`.hp[data-hp="${uid}"]`)) {
+      const bar = $('.bar', h), gh = $('.ghost', h), sp = $('span', h);
+      if (bar) { bar.style.width = hp + '%'; bar.style.background = hp > 60 ? '#35c24a' : hp > 30 ? '#f2b705' : '#e33b3b'; }
+      if (gh) gh.style.width = hp + '%';
+      if (sp) sp.textContent = hp;
+    }
   }
 
   async function playEvents(events) {
@@ -421,40 +469,48 @@
     for (const e of events) {
       if (e.t === 'skill') {
         const p = centerOf(e.uid);
+        const c = NA.byUid(A.b.st, e.uid), sk = NA.skillOf(c, e.si);
         if (p) p.el.classList.add('casting');
-        const foe = e.uid >= 10;
-        banner(`${e.icon} ${e.name}`, foe);
+        banner(`${e.icon} ${e.name}`, e.uid >= 10);
         NA.sfx('skill');
-        await sleep(330 * k);
-        for (const t of e.targets) if (t !== e.uid) projectile(e.uid, t, e.icon);
-        await sleep(e.targets.some((t) => t !== e.uid) ? 380 * k : 120 * k);
+        const others = e.targets.filter((t) => t !== e.uid);
+        if (e.harmful && others.length) {
+          const melee = sk.cls.includes('Corpo a corpo');
+          const hit = lunge(e.uid, others[0], melee);
+          if (!melee) { await sleep(160 * k); for (const t of others) projectile(e.uid, t, e.icon); await sleep(400 * k); }
+          else await sleep(hit);
+          for (const t of others) impact(t, e.icon, 'harm');
+          await sleep((melee ? 300 : 160) * k);
+        } else {
+          hop(e.uid);
+          await sleep(200 * k);
+          for (const t of e.targets) impact(t, e.icon, 'buff');
+          await sleep(360 * k);
+        }
         if (p) p.el.classList.remove('casting');
       } else if (e.t === 'dmg') {
-        const p = centerOf(e.uid);
-        if (p) { p.el.classList.remove('hit'); void p.el.offsetWidth; p.el.classList.add('hit'); }
         const cls = e.kind === 'piercing' ? 'pierce' : e.kind === 'affliction' ? 'aff' : 'dmg';
-        if (e.amt > 0) floatText(e.uid, '-' + e.amt, cls); else floatText(e.uid, e.absorbed ? `🛡 ${e.absorbed}` : 'Bloqueado', 'blocked');
-        if (e.amt > 0) { sparks(e.uid, cls === 'aff' ? '#c56bff' : cls === 'pierce' ? '#ffb000' : '#ff4d4d'); NA.sfx('hit'); }
+        if (e.amt > 0) { knock(e.uid); floatText(e.uid, '-' + e.amt, cls); sparks(e.uid, cls === 'aff' ? '#c56bff' : cls === 'pierce' ? '#ffb000' : '#ff4d4d'); NA.sfx('hit'); }
+        else floatText(e.uid, e.absorbed ? `🛡 ${e.absorbed}` : 'Bloqueado', 'blocked');
         setHP(e.uid, e.hp);
-        await sleep(260 * k);
+        await sleep(280 * k);
       } else if (e.t === 'heal') {
-        const p = centerOf(e.uid);
-        if (p) { p.el.classList.add('healfx'); setTimeout(() => p.el.classList.remove('healfx'), 500); }
-        floatText(e.uid, '+' + e.amt, 'heal'); NA.sfx('heal'); setHP(e.uid, e.hp);
-        await sleep(240 * k);
+        impact(e.uid, '💚', 'buff'); floatText(e.uid, '+' + e.amt, 'heal'); NA.sfx('heal'); setHP(e.uid, e.hp);
+        await sleep(260 * k);
       } else if (e.t === 'status') {
         floatText(e.uid, `${e.icon} ${e.name}`, 'info'); NA.sfx('status');
-        await sleep(160 * k);
+        await sleep(170 * k);
       } else if (e.t === 'counter') {
-        floatText(e.uid, '🪞 Anulado!', 'info'); await sleep(300 * k);
+        impact(e.uid, '🪞', 'buff'); floatText(e.uid, 'Anulado!', 'info'); await sleep(320 * k);
       } else if (e.t === 'resist') {
         floatText(e.uid, '🛡️ Imune', 'info'); await sleep(200 * k);
       } else if (e.t === 'death') {
         const p = centerOf(e.uid); if (p) p.el.classList.add('dead'); NA.sfx('death');
-        await sleep(450 * k);
+        await sleep(650 * k);
       } else if (e.t === 'drain') {
         toast(e.side === 0 ? `💧 Você perdeu ${e.types.length} chakra` : `💧 Oponente perdeu ${e.types.length} chakra`);
       } else if (e.t === 'turn') {
+        if (A.b) updateStage();
         await sleep(150 * k);
       }
     }
@@ -475,12 +531,11 @@
   }
 
   function renderBattleBusy() {
-    // remove destaques e fila, mas mantém HP antigos para animar
     $$('.qbadge,.inc').forEach((e) => e.remove());
-    $$('.fighter.target').forEach((e) => e.classList.remove('target'));
+    $$('.unit.target,.mini.target').forEach((e) => e.classList.remove('target'));
     $$('.skill').forEach((e) => { e.classList.add('off'); e.classList.remove('sel', 'queued'); });
     const pr = $('.pronto'); if (pr) { pr.disabled = true; pr.classList.add('wait'); pr.textContent = '…'; }
-    const info = $('.info'); if (info) info.innerHTML = '<h4>⚔️ Executando…</h4>';
+    const info = $('#info'); if (info) info.innerHTML = '<h4>⚔️ Executando…</h4><div class="hint">Observe as técnicas!</div>';
     const qu = $('.queue'); if (qu) qu.innerHTML = '<span>Executando</span>';
   }
 
@@ -514,6 +569,7 @@
     const unlocks = r.newMissions.filter((m) => m.unlock).map((m) => NA.CHARS_BY_ID[m.unlock].name);
     modal(`<div class="end"><div class="big ${result}">${result === 'win' ? 'VITÓRIA!' : result === 'loss' ? 'DERROTA' : 'EMPATE'}</div>
       <p class="mut" style="margin:4px 0">${result === 'win' ? (flawless ? 'Vitória perfeita — sem baixas!' : 'Seu time prevaleceu na arena.') : result === 'loss' ? 'Treine mais e volte mais forte.' : 'Ninguém ficou de pé.'}</p>
+      <div class="endteams"><div>${b.team.map((id) => `<span class="ep">${NA.portraitHTML(id, 'e' + id)}</span>`).join('')}</div><b>VS</b><div>${b.enemy.map((id) => `<span class="ep foe">${NA.portraitHTML(id, 'x' + id)}</span>`).join('')}</div></div>
       <div class="gains"><div>✨ +${r.xp} XP</div><div>🏆 ${r.lp >= 0 ? '+' : ''}${r.lp} PL</div></div>
       ${r.levelUp ? `<div class="card" style="margin-bottom:8px">⬆️ <b>Subiu para o nível ${r.levelUp}!</b> Rank: ${li.rank}</div>` : ''}
       ${r.newMissions.map((m) => `<div class="card" style="margin-bottom:8px">📜 Missão concluída: <b>${esc(m.name)}</b><br><span style="color:var(--or2)">🎁 ${esc(m.reward)}</span></div>`).join('')}

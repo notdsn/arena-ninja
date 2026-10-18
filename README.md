@@ -11,3 +11,9 @@ Personagens © Masashi Kishimoto / Shueisha. Retratos são SVGs originais gerado
 `localStorage['arenaNinja.save']`, versionado (`v`). **Nunca apagar saves**: para mudar o formato,
 incremente `SAVE_VERSION` em `js/save.js` e adicione uma migração em `MIGRATIONS`.
 Saves corrompidos são copiados para `arenaNinja.save.backup.<timestamp>` antes de qualquer coisa.
+
+## Imagens
+- `img/p/*.webp` — retratos 256x256 recortados das imagens de infobox da Narutopedia (naruto.fandom.com).
+- `img/full/*.webp` — artes de corpo inteiro (PNG transparente) da Narutopedia, usadas no palco de batalha.
+- `img/arena.svg` — cenário do palco (desenhado por código).
+- Se uma imagem falhar, o retrato SVG gerado por código aparece no lugar.
